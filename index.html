@@ -4,9 +4,350 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pattern Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
 </head>
-<body>
-    <h1>Pattern Generator</h1>
-    <p>Welcome to the Pattern Generator app!</p>
+<body class="min-h-screen bg-white flex items-center justify-center p-6 text-gray-900">
+
+    <div class="w-full max-w-md">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-semibold text-gray-900 tracking-tight mb-2">
+                Pattern Generator
+            </h1>
+            <p class="text-gray-500 text-sm">
+                Generate a unified pattern from PAN and DOB
+            </p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="border-0 shadow-sm bg-gray-50 rounded-lg overflow-hidden">
+            <div class="p-6 space-y-6">
+                
+                <!-- PAN Input -->
+                <div class="space-y-2">
+                    <label for="pan-input" class="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                        PAN
+                    </label>
+                    <input 
+                        id="pan-input"
+                        type="text"
+                        placeholder="ABCDE1234F"
+                        maxlength="10"
+                        class="flex h-10 w-full rounded-md border text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50
+                        text-sm font-mono bg-white border-gray-200 focus-visible:ring-gray-200 focus-visible:border-gray-400 transition-all duration-200 px-3 py-2"
+                    />
+                    <p id="pan-error" class="text-xs text-red-500 hidden">
+                        Invalid format (e.g., ABCDE1234F)
+                    </p>
+                </div>
+
+                <!-- DOB Input -->
+                <div class="space-y-2">
+                    <label for="dob-input" class="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                        Date of Birth
+                    </label>
+                    <input 
+                        id="dob-input"
+                        type="text"
+                        placeholder="DD/MM/YYYY or 10-Apr-1974"
+                        class="flex h-10 w-full rounded-md border text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50
+                        text-sm font-mono bg-white border-gray-200 focus-visible:ring-gray-200 focus-visible:border-gray-400 transition-all duration-200 px-3 py-2"
+                    />
+                    <p id="dob-error" class="text-xs text-red-500 hidden">
+                        Invalid date format
+                    </p>
+                    <p id="dob-success" class="text-xs text-green-600 hidden">
+                        ✓ Valid
+                    </p>
+                </div>
+
+                <!-- Divider -->
+                <div class="border-t border-gray-200"></div>
+
+                <!-- Output Field -->
+                <div class="space-y-2">
+                    <label for="output-field" class="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                        Generated Pattern
+                    </label>
+                    <div class="flex gap-2">
+                        <input
+                            id="output-field"
+                            readonly
+                            placeholder="Pattern will appear here..."
+                            class="flex h-10 w-full rounded-md border px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50
+                            flex-1 font-mono text-sm tracking-wide bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                        />
+                        <button
+                            id="copy-btn"
+                            disabled
+                            class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50
+                            h-10 px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <i data-lucide="copy" class="w-4 h-4 mr-2"></i>
+                            Copy
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="mt-6 text-center">
+            <p class="text-xs text-gray-400">
+                Supports: DD/MM/YYYY, DD-MM-YYYY, DD-Mon-YYYY
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // --- Utilities (patternGenerator.ts) ---
+
+        const monthMap = {
+            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+            'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+            'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
+        };
+
+        function padZero(num) {
+            return num.length === 1 ? `0${num}` : num;
+        }
+
+        function validatePAN(pan) {
+            const cleanPAN = pan.toUpperCase().trim();
+            return /^[A-Z]{5}\d{4}[A-Z]$/.test(cleanPAN);
+        }
+
+        function parseAndFormatDate(dateString) {
+            if (!dateString) return null;
+            
+            const cleanedInput = dateString.trim().replace(/\s+/g, ' ');
+            
+            // Try month name format first (e.g., 10-Apr-1974, 10 Apr 1974, 10/Apr/1974)
+            const monthNameMatch = cleanedInput.match(/^(\d{1,2})[\s\-/.]+([a-zA-Z]{3})[\s\-/.]+(\d{4})$/);
+            if (monthNameMatch) {
+                const [, day, monthName, year] = monthNameMatch;
+                const monthLower = monthName.toLowerCase();
+                
+                if (monthMap[monthLower]) {
+                    const dayNum = parseInt(day);
+                    if (dayNum >= 1 && dayNum <= 31) {
+                        return `${padZero(day)}${monthMap[monthLower]}${year}`;
+                    }
+                }
+            }
+            
+            // Try different separators for numeric formats
+            const separators = ['/', '-', '.'];
+            
+            for (const sep of separators) {
+                if (cleanedInput.includes(sep)) {
+                    const parts = cleanedInput.split(sep);
+                    
+                    if (parts.length === 3) {
+                        const [part1, part2, part3] = parts;
+                        
+                        if (!/^\d+$/.test(part1) || !/^\d+$/.test(part2) || !/^\d+$/.test(part3)) {
+                            continue;
+                        }
+                        
+                        // Try DD/MM/YYYY format (day first)
+                        if (parseInt(part1) <= 31 && parseInt(part2) <= 12 && part3.length === 4) {
+                            return `${padZero(part1)}${padZero(part2)}${part3}`;
+                        }
+                        
+                        // Try YYYY/MM/DD format (year first)
+                        if (part1.length === 4 && parseInt(part2) <= 12 && parseInt(part3) <= 31) {
+                            return `${padZero(part3)}${padZero(part2)}${part1}`;
+                        }
+                    }
+                }
+            }
+            
+            // Try YYYYMMDD format (no separators, 8 digits)
+            if (/^\d{8}$/.test(cleanedInput)) {
+                const year = cleanedInput.substring(0, 4);
+                const month = cleanedInput.substring(4, 6);
+                const day = cleanedInput.substring(6, 8);
+                
+                if (parseInt(month) <= 12 && parseInt(day) <= 31) {
+                    return `${day}${month}${year}`;
+                }
+            }
+            
+            // Try DDMMYYYY format (no separators, 8 digits)
+            if (/^\d{8}$/.test(cleanedInput)) {
+                const day = cleanedInput.substring(0, 2);
+                const month = cleanedInput.substring(2, 4);
+                const year = cleanedInput.substring(4, 8);
+                
+                if (parseInt(day) <= 31 && parseInt(month) <= 12) {
+                    return `${day}${month}${year}`;
+                }
+            }
+            
+            return null;
+        }
+
+        function formatDisplayDate(dateString) {
+            const formatted = parseAndFormatDate(dateString);
+            if (!formatted) return dateString;
+            
+            const day = formatted.substring(0, 2);
+            const month = formatted.substring(2, 4);
+            const year = formatted.substring(4, 8);
+            
+            return `${day}/${month}/${year}`;
+        }
+
+        function generatePattern(pan, dob) {
+            if (!pan || !dob) return "";
+            
+            const cleanPAN = pan.toUpperCase().trim();
+            if (!validatePAN(cleanPAN)) return "";
+            
+            const formattedDOB = parseAndFormatDate(dob);
+            if (!formattedDOB) return "";
+            
+            return cleanPAN.toLowerCase() + formattedDOB;
+        }
+
+
+        // --- UI Logic ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+
+            const panInput = document.getElementById('pan-input');
+            const dobInput = document.getElementById('dob-input');
+            const outputField = document.getElementById('output-field');
+            const panError = document.getElementById('pan-error');
+            const dobError = document.getElementById('dob-error');
+            const dobSuccess = document.getElementById('dob-success');
+            const copyBtn = document.getElementById('copy-btn');
+            
+            let state = {
+                pan: "",
+                dob: "",
+                output: ""
+            };
+
+            function updatePattern() {
+                const pattern = generatePattern(state.pan, state.dob);
+                state.output = pattern;
+                outputField.value = pattern;
+                
+                if (pattern) {
+                    outputField.classList.remove('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+                    outputField.classList.add('bg-white', 'text-gray-900');
+                    copyBtn.disabled = false;
+                    copyBtn.classList.remove('bg-white', 'text-gray-700', 'border-gray-200');
+                    copyBtn.classList.add('bg-white', 'text-gray-700', 'border-gray-200', 'hover:bg-gray-50'); 
+                } else {
+                    outputField.classList.add('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+                    outputField.classList.remove('bg-white', 'text-gray-900');
+                    copyBtn.disabled = true;
+                }
+            }
+
+            // PAN Handlers
+            panInput.addEventListener('input', (e) => {
+                const val = e.target.value.toUpperCase();
+                e.target.value = val;
+                state.pan = val;
+                
+                const isValid = validatePAN(val);
+                if (val.length > 0 && !isValid) {
+                    panInput.classList.add('border-red-400', 'focus-visible:ring-red-400', 'focus-visible:border-red-400');
+                    panInput.classList.remove('focus-visible:ring-gray-200', 'focus-visible:border-gray-400');
+                    panError.classList.remove('hidden');
+                } else {
+                    panInput.classList.remove('border-red-400', 'focus-visible:ring-red-400', 'focus-visible:border-red-400');
+                    panInput.classList.add('focus-visible:ring-gray-200', 'focus-visible:border-gray-400');
+                    panError.classList.add('hidden');
+                }
+                
+                updatePattern();
+            });
+
+            // DOB Handlers
+            dobInput.addEventListener('input', (e) => {
+                const val = e.target.value;
+                state.dob = val;
+                
+                // Clear validation state on input
+                dobInput.classList.remove('border-red-400', 'focus-visible:ring-red-400', 'focus-visible:border-red-400');
+                dobInput.classList.add('focus-visible:ring-gray-200', 'focus-visible:border-gray-400');
+                dobError.classList.add('hidden');
+                dobSuccess.classList.add('hidden');
+                
+                updatePattern();
+            });
+
+            dobInput.addEventListener('blur', (e) => {
+                 const val = e.target.value;
+                
+                // Try to format
+                const formatted = parseAndFormatDate(val);
+                
+                if (formatted) {
+                    const display = formatDisplayDate(val);
+                    dobInput.value = display;
+                    state.dob = display;
+                    
+                    dobSuccess.classList.remove('hidden');
+                    dobError.classList.add('hidden');
+                    
+                    dobInput.classList.remove('border-red-400', 'focus-visible:ring-red-400', 'focus-visible:border-red-400');
+                } else if (val.length > 0) {
+                   dobInput.classList.add('border-red-400', 'focus-visible:ring-red-400', 'focus-visible:border-red-400');
+                    dobInput.classList.remove('focus-visible:ring-gray-200', 'focus-visible:border-gray-400');
+                    dobError.classList.remove('hidden');
+                    dobSuccess.classList.add('hidden');
+                }
+                updatePattern();
+            });
+
+            // Copy Handler
+            copyBtn.addEventListener('click', async () => {
+                if (!state.output) return;
+                
+                try {
+                    await navigator.clipboard.writeText(state.output);
+                    
+                    // Update UI to "Copied"
+                    const originalContent = copyBtn.innerHTML;
+                    const originalClasses = copyBtn.className;
+                    
+                    copyBtn.innerHTML = `<i data-lucide="check" class="w-4 h-4 mr-2"></i>Copied`;
+                    copyBtn.classList.remove('bg-white', 'text-gray-700', 'border-gray-200', 'hover:bg-gray-50');
+                    copyBtn.classList.add('bg-gray-900', 'text-white', 'border-gray-900', 'hover:bg-gray-800');
+                    lucide.createIcons();
+
+                    setTimeout(() => {
+                        copyBtn.innerHTML = `<i data-lucide="copy" class="w-4 h-4 mr-2"></i>Copy`;
+                        copyBtn.classList.remove('bg-gray-900', 'text-white', 'border-gray-900', 'hover:bg-gray-800');
+                        copyBtn.classList.add('bg-white', 'text-gray-700', 'border-gray-200', 'hover:bg-gray-50');
+                        lucide.createIcons();
+                    }, 2000);
+
+                } catch (err) {
+                    console.error("Failed to copy:", err);
+                }
+            });
+        });
+    </script>
 </body>
 </html>
